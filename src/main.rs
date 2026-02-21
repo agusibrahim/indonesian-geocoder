@@ -15,7 +15,7 @@ use tower_http::cors::CorsLayer;
 use tracing::info;
 
 const DB_NAME: &str = "indonesia_area.db";
-const DB_DOWNLOAD_URL: &str = "https://example.com/indonesia_area.db";
+const DB_DOWNLOAD_URL: &str = "https://github.com/agusibrahim/indonesian-geocoder/releases/download/db/indonesia_area.db";
 
 #[derive(Clone)]
 struct AppState {
@@ -103,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
 
     let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{}", port);
-    
+
     info!("🚀 Server running on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
@@ -114,7 +114,7 @@ async fn main() -> anyhow::Result<()> {
 async fn download_database() -> anyhow::Result<()> {
     info!("Downloading database from {}...", DB_DOWNLOAD_URL);
     let response = reqwest::get(DB_DOWNLOAD_URL).await?;
-    
+
     if !response.status().is_success() {
         tracing::warn!("Failed to download database. Make sure {} exists.", DB_NAME);
         return Ok(());
@@ -136,14 +136,14 @@ async fn reverse_geocode(
     let user_point = Point::new(lng, lat);
 
     let query = r#"
-        SELECT v.id, v.name as village_name, 
+        SELECT v.id, v.name as village_name,
                d.name as district_name, r.name as regency_name, p.name as province_name,
                v.lat, v.lng, v.boundaries
         FROM villages v
         LEFT JOIN districts d ON v.parent_id = d.id
         LEFT JOIN regencies r ON d.parent_id = r.id
         LEFT JOIN provinces p ON r.parent_id = p.id
-        WHERE ? BETWEEN v.min_lat AND v.max_lat 
+        WHERE ? BETWEEN v.min_lat AND v.max_lat
           AND ? BETWEEN v.min_lng AND v.max_lng
     "#;
 
@@ -152,7 +152,7 @@ async fn reverse_geocode(
             for row in rows {
                 let wkb_data: Vec<u8> = row.get("boundaries");
                 let wkb_geom = Wkb(wkb_data);
-                
+
                 if let Ok(geom) = wkb_geom.to_geo() {
                     if geom.contains(&user_point) {
                         let id: String = row.get("id");
@@ -162,9 +162,9 @@ async fn reverse_geocode(
                         let p_name: String = row.get("province_name");
                         let centroid_lat: f64 = row.get("lat");
                         let centroid_lng: f64 = row.get("lng");
-                        
+
                         let full_name = format!("Kelurahan {}, Kecamatan {}, {}, {}", v_name, d_name, r_name, p_name);
-                        
+
                         let center_point = Point::new(centroid_lng, centroid_lat);
                         let distance = user_point.haversine_distance(&center_point);
 
@@ -210,7 +210,7 @@ async fn search_places(
     Query(params): Query<SearchQuery>,
 ) -> impl IntoResponse {
     let limit = if params.limit == 0 { 10 } else { params.limit.min(50) };
-    
+
     let keywords: Vec<String> = params.q
         .to_lowercase()
         .split_whitespace()
@@ -229,9 +229,9 @@ async fn search_places(
     for _ in 0..keywords.len() {
         where_clauses.push("(LOWER(v.name) LIKE ? OR LOWER(d.name) LIKE ? OR LOWER(r.name) LIKE ? OR LOWER(p.name) LIKE ?)");
     }
-    
+
     let where_sql = where_clauses.join(" AND ");
-    
+
     let query_str = format!(
         r#"
         SELECT 'village' as level, v.id, v.name as v_name, d.name as d_name, r.name as r_name, p.name as p_name, v.lat, v.lng
@@ -246,7 +246,7 @@ async fn search_places(
     );
 
     let mut query_builder = sqlx::query(&query_str);
-    
+
     for kw in &keywords {
         query_builder = query_builder.bind(kw).bind(kw).bind(kw).bind(kw);
     }
@@ -254,7 +254,7 @@ async fn search_places(
     match query_builder.fetch_all(&state.db).await {
         Ok(rows) => {
             let mut results = Vec::new();
-            
+
             let user_loc = match (params.lat, params.lng) {
                 (Some(lat), Some(lng)) => Some(Point::new(lng, lat)),
                 _ => None,
@@ -267,7 +267,7 @@ async fn search_places(
                 let p_name: String = row.get("p_name");
                 let centroid_lat: f64 = row.get("lat");
                 let centroid_lng: f64 = row.get("lng");
-                
+
                 let full_name = format!("Kelurahan {}, Kecamatan {}, {}, {}", v_name, d_name, r_name, p_name);
 
                 let mut dist_meters = None;
