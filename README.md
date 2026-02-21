@@ -1,7 +1,6 @@
 # Indonesian Geocoder & Places API 🇮🇩
 
 **Alternatif Self-Hosted Bebas Biaya untuk Google Maps Geocoding & Place Search API!**
-Repository: [https://github.com/agusibrahim/indonesian-geocoder](https://github.com/agusibrahim/indonesian-geocoder)
 
 Proyek ini adalah API *Reverse Geocoding* dan *Places Search* offline dan super cepat menggunakan Rust. Dibangun khusus untuk memproses data geospasial wilayah Indonesia (Provinsi, Kabupaten/Kota, Kecamatan, hingga Kelurahan/Desa) dari file GeoJSON. Berhenti membayar tagihan API yang mahal hanya untuk mengidentifikasi lokasi user di Indonesia! Cukup jalankan *binary* ringan ini di server VPS Anda sendiri (*self-hosted*), dan nikmati pencarian tanpa batas kueri (*unlimited requests*).
 
@@ -104,15 +103,3 @@ Proyek ini menggunakan *database* tunggal `indonesia_area.db` (SQLite). Jika And
 
 **Kustomisasi Akurasi Poligon (Simplifikasi):**
 Di dalam file `create_db.py` terdapat konstanta `SIMPLIFY_TOLERANCE`. Saat ini bernilai `0.0002` (Akurasi toleransi ±20 meter). Ubah nilai ini jika Anda ingin database yang ukurannya lebih ringan atau lebih detail.
-
----
-
-## Deployment & CI/CD
-Proyek ini dilengkapi dengan GitHub Actions (`.github/workflows/release.yml`) yang secara otomatis mem-_build_ aplikasi (*cross-compile*) secara statis dan meng-upload file eksekusi (*binary file*) dalam format `tar.gz` di tab **Releases** GitHub setiap kali ada tag rilis (misal `v1.0.0`).
-
-Dukungan arsitektur:
-- Linux AMD64 (x86_64)
-- Linux ARM64 (aarch64)
-- macOS Intel
-- macOS Apple Silicon (M1/M2/M3)
-- Windows x86_64
