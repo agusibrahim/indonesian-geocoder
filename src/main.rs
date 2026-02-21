@@ -5,9 +5,11 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use futures_util::StreamExt;
 use geo::{Contains, Point};
 use geo::prelude::HaversineDistance;
 use geozero::{wkb::Wkb, ToGeo};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sqlx::{sqlite::{SqliteConnectOptions, SqlitePoolOptions}, Pool, Row, Sqlite};
 use std::{env, io::Write, path::Path, sync::Arc};
@@ -75,6 +77,10 @@ struct APIResponse<T> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Set default RUST_LOG ke info jika user tidak mensetnya
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "info");
+    }
     tracing_subscriber::fmt::init();
 
     if !Path::new(DB_NAME).exists() {
@@ -113,16 +119,43 @@ async fn main() -> anyhow::Result<()> {
 
 async fn download_database() -> anyhow::Result<()> {
     info!("Downloading database from {}...", DB_DOWNLOAD_URL);
-    let response = reqwest::get(DB_DOWNLOAD_URL).await?;
+
+    // Create client that follows redirects
+    let client = Client::builder()
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()?;
+
+    let response = client.get(DB_DOWNLOAD_URL).send().await?;
 
     if !response.status().is_success() {
-        tracing::warn!("Failed to download database. Make sure {} exists.", DB_NAME);
+        tracing::warn!("Failed to download database (Status: {}). Make sure {} exists.", response.status(), DB_NAME);
         return Ok(());
     }
 
+    let total_size = response.content_length().unwrap_or(0);
+    info!("Starting download... (Total size: {} bytes)", total_size);
+
     let mut file = std::fs::File::create(DB_NAME)?;
-    let bytes = response.bytes().await?;
-    file.write_all(&bytes)?;
+    let mut downloaded: u64 = 0;
+    let mut stream = response.bytes_stream();
+
+    let mut last_percent = 0;
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        file.write_all(&chunk)?;
+        downloaded += chunk.len() as u64;
+
+        if total_size > 0 {
+            let percent = (downloaded as f64 / total_size as f64 * 100.0) as u64;
+            // Hanya print setiap kelipatan 5% untuk menghindari spam log
+            if percent >= last_percent + 5 || percent == 100 {
+                info!("Downloading: {}%", percent);
+                last_percent = percent;
+            }
+        }
+    }
+
     info!("Database downloaded successfully!");
     Ok(())
 }
